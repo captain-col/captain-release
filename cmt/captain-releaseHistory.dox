@@ -10,4 +10,15 @@ Freeze information:
 
 Start freeze process for new captain-release version.
 
+
+\section captain-release_v0r0p1_history Version 0.0.1
+
+Freeze information:
+   - Freeze Date: Mon Feb  2 20:30:41 2015
+   - Freeze User: mcgrew
+   - Freeze Host: boxer 
+
+
+Set the version of the main captainRelease container package to 0.0.1.
+
 */
