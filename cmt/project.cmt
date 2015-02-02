@@ -2,4 +2,4 @@ project captain-release
 
 use LCGCMT 1.2.0
 
-container captainRelease 0.0.x
+container captainRelease 0.0.1
