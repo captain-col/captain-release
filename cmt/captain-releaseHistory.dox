@@ -21,4 +21,18 @@ Freeze information:
 
 Set the version of the main captainRelease container package to 0.0.1.
 
+
+\section captain-release_v0r0p2_history Version 0.0.2
+
+Freeze information:
+   - Freeze Date: Fri Apr 10 12:26:16 2015
+   - Freeze User: mcgrew
+   - Freeze Host: boxer boxer 
+
+
+This is a check point release to capture the state of the software after
+initial LAr cosmic ray runs.  It is intended to provide a base for further
+development, and to allow MC studies for the CAPTAIN-MINERvA proposal to be
+done using a frozen version of the software.
+
 */
