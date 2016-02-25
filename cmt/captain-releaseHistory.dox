@@ -35,4 +35,15 @@ initial LAr cosmic ray runs.  It is intended to provide a base for further
 development, and to allow MC studies for the CAPTAIN-MINERvA proposal to be
 done using a frozen version of the software.
 
+
+\section captain-release_v0r0p3_history Version 0.0.3
+
+Freeze information:
+   - Freeze Date: Thu Feb 25 14:50:47 2016
+   - Freeze User: mcgrew
+   - Freeze Host: boxer boxer 
+
+
+Freeze the project associated with the CAPTAIN software release 0.0.3.
+
 */
