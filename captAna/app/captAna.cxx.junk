@@ -1,0 +1,1037 @@
+#include <eventLoop.hxx>
+#include <captAna.hxx>
+
+ 
+ void CP::captAna::fillTrackNode(CP::TCapTrackNode* node,CP::THandle<CP::TTrackState> tstate) {
+  if(!tstate) return;
+  node->edep= tstate->GetEDeposit();
+  node->edepVariance= tstate->GetEDepositVariance();
+  node->positionVec = tstate->GetPosition();
+  node->positionVariance = tstate->GetPositionVariance();
+  return ;
+}
+
+void CP::captAna::fillCapHit(CP::TCapHit* capHit, CP::THandle<CP::THit> hit, double noise=0) {
+  CP::TChannelId chid = hit->GetChannelId();
+  CP::TGeometryId geoid = CP::TChannelInfo::Get().GetGeometry(chid);
+  int plane = CP::GeomId::Captain::GetWirePlane(geoid);
+  double wire = CP::GeomId::Captain::GetWireNumber(geoid) + 0.5;
+  CP::TTPCChannelId tpcid(chid);
+  int nChannel =tpcid.GetChannel();
+  int nASIC= nChannel>>4; 
+  capHit->nchan= nChannel;
+  capHit->fem= tpcid.GetFEM();
+  capHit->crate=tpcid.GetCrate();
+  capHit->asic=nASIC;
+  capHit->plane=plane;
+  capHit->wire=int(wire);
+  capHit->q = hit->GetCharge();
+  capHit->dq = hit->GetChargeUncertainty();
+  capHit->x = hit->GetPosition().X();
+  capHit->dx = hit->GetUncertainty().X();
+  capHit->y = hit->GetPosition().Y();
+  capHit->dy = hit->GetUncertainty().Y();
+  capHit->z = hit->GetPosition().Z();
+  capHit->dz = hit->GetUncertainty().Z();
+  capHit->t = hit->GetTime();
+  capHit->dt = hit->GetTimeUncertainty();
+  capHit->rmst = hit->GetTimeRMS();
+  capHit->noise = noise;
+}
+//track
+void CP::captAna::fillCapTrack(CP::TCapTrack* track, CP::THandle<CP::TReconTrack>  rtrack) {
+  track->edep = rtrack->GetEDeposit();
+  track->positionVec= rtrack->GetPosition();
+  track->positionVariance= rtrack->GetPositionVariance();
+  track->dimensions = rtrack->GetDimensions();
+  track->isXTrack = rtrack->IsXTrack();
+  track->isYTrack = rtrack->IsYTrack();
+  track->isZTrack = rtrack->IsZTrack();
+  track->directionVec = rtrack->GetDirection();
+  track->mass = rtrack->GetMass();
+  track->width = rtrack->GetWidth();
+  // fill hits for this track
+  CP::THandle<CP::THitSelection> rhits = rtrack->GetHits();
+  for (CP::THitSelection::iterator rhit = rhits->begin(); rhit != rhits->end(); ++rhit) {
+    CP::TCapHit capHit;
+    CP::THandle<CP::THit> theHit = *rhit;
+    fillCapHit(&capHit,theHit);
+    track->hits.push_back(capHit);  
+  }
+  // fill nodes 
+  CP::TReconNodeContainer nodeContainer = rtrack->GetNodes();  
+  for(TReconNodeContainer::iterator nitr =nodeContainer.begin(); nitr !=nodeContainer.end(); ++nitr ) {
+    CP::THandle<CP::TTrackState> tstate = (*nitr)->GetState();
+    if(tstate) {
+      CP::TCapTrackNode node;
+      fillTrackNode(&node,tstate);
+      track->nodes.push_back(node);
+    }
+  }
+}
+//cluster
+void CP::captAna::fillCapCluster(CP::TCapCluster* cluster, CP::THandle<CP::TReconCluster> rcluster) {
+   // gotta put this in CP::THandle<CP::TClusterState> GetState() const {
+    cluster->edep= rcluster->GetEDeposit();
+    cluster->edepVariance=rcluster->GetEDepositVariance();
+    cluster->positionVec=rcluster->GetPosition();
+    cluster->positionVariance=rcluster->GetPositionVariance();
+    cluster->dimensions = rcluster->GetDimensions();
+    cluster->isXCluster = rcluster->IsXCluster();
+    cluster->isYCluster = rcluster->IsYCluster();
+    cluster->isZCluster = rcluster->IsZCluster();
+    cluster->longAxis =rcluster->GetLongAxis();
+    cluster->majorAxis =rcluster->GetMajorAxis();
+    cluster->minorAxis =rcluster->GetMinorAxis();
+    cluster->longExtent =rcluster->GetLongExtent();
+    cluster->majorExtent =rcluster->GetMajorExtent();
+    cluster->minorExtent =rcluster->GetMinorExtent();
+
+    CP::TReconCluster::MomentMatrix rmoments = rcluster->GetMoments();
+    //cluster->fMoments = rmoments;
+    for(int im =0; im<3 ; ++im) {
+      for (int jm=0; jm<3; ++jm ) cluster->moments[im][jm] = rmoments(im,jm);
+    }
+    // add hits for the cluster 
+    CP::THandle<CP::THitSelection> rhits = rcluster->GetHits();
+    for (CP::THitSelection::iterator rhit = rhits->begin(); rhit != rhits->end(); ++rhit) {
+      CP::TCapHit capHit;
+      CP::THandle<CP::THit> theHit = *rhit;
+      fillCapHit(&capHit,theHit);
+      cluster->hits.push_back(capHit); 
+    }
+
+ } 
+
+// shower
+void CP::captAna::fillCapShower(CP::TCapShower* shower, CP::THandle<CP::TReconShower> rshower) {
+   // gotta put this in CP::THandle<CP::TShowerState> GetState() const {
+    //printf(" filling shower \n");
+    shower->edep= rshower->GetEDeposit();
+    shower->positionVec=rshower->GetPosition();
+    shower->positionVariance=rshower->GetPositionVariance();
+    shower->dimensions = rshower->GetDimensions();
+    shower->isXShower = rshower->IsXShower();
+    shower->isYShower = rshower->IsYShower();
+    shower->isZShower = rshower->IsZShower();
+    shower->coneAngle = rshower->GetConeAngle();
+    //printf(" %f %f \n",shower->edep,shower->coneAngle);
+    // add hits for the shower 
+    CP::THandle<CP::THitSelection> rhits = rshower->GetHits();
+    for (CP::THitSelection::iterator rhit = rhits->begin(); rhit != rhits->end(); ++rhit) {
+      CP::TCapHit capHit;
+      CP::THandle<CP::THit> theHit = *rhit;
+      fillCapHit(&capHit,theHit);
+      shower->hits.push_back(capHit); 
+    }
+
+ }  
+
+
+
+void CP::captAna::InitTruth(){
+  // truth branch in anaTree
+  tcaptruth= new CP::TCapTruth();
+  anaTree->Branch("truth",&tcaptruth);
+  
+  gDirectory->cd("/");
+  fTG4TrajectoriesModule= new CP::TG4TrajectoriesModule(); 
+  fTG4VerticiesModule = new CP::TG4VerticesModule();      
+  std::string dirname = fTG4TrajectoriesModule->GetDirectoryName();
+  gDirectory->cd("/");
+  gDirectory->mkdir(dirname.c_str());
+  gDirectory->cd(dirname.c_str());
+  fTG4TrajectoriesModule->Initialize(new TTree(fTG4TrajectoriesModule->GetName(), fTG4TrajectoriesModule->GetTitle()));
+
+  dirname = fTG4VerticiesModule->GetDirectoryName();
+  gDirectory->cd("/");
+  gDirectory->mkdir(dirname.c_str());
+  gDirectory->cd(dirname.c_str());
+  fTG4VerticiesModule->Initialize(new TTree(fTG4VerticiesModule->GetName(), fTG4VerticiesModule->GetTitle()));
+}
+
+// from TG4TrajectoriesModule  
+// I put this in because I wanted to be sure the correctly ordered trajectory was filled
+void CP::captAna::fillTruthPoints(CP::TCapTrajectory *atraj, CP::TG4Trajectory* traj) {
+    // Get the points from the trajectory.
+    const CP::TG4Trajectory::Points& points = traj->GetTrajectoryPoints();
+    if (points.empty()) {
+        printf("Found TG4Trajectory with no trajectory points");
+        return;
+    }
+    for (CP::TG4Trajectory::Points::const_iterator p = points.begin(); p != points.end(); ++p) {
+        std::string volumeName = p->GetVolumeName();
+        // Figure out the volume number for this.  Be careful with the
+        // conditions since the first one that's met determine the volume number.
+        int thisVolume = 0;
+        if (volumeName.find("Drift") != std::string::npos) {
+            thisVolume = 1;
+        }
+        else if (volumeName.find("Cryostat") != std::string::npos) {
+            thisVolume = 50;
+        }
+        else {
+            thisVolume = 999;
+        }
+
+        // Find the next volume name.
+        CP::TG4Trajectory::Points::const_iterator n = p;
+        int nextVolume = 0;
+        if (++n != points.end()) {
+            volumeName = n->GetVolumeName();
+            if (volumeName.find("Drift") != std::string::npos) {
+                nextVolume = 1;
+            }
+            else if (volumeName.find("Cryostat") != std::string::npos) {
+                nextVolume = 50;
+            }
+            else {
+                nextVolume = 999;
+            }
+        }
+
+        atraj->Position.push_back(p->GetPosition());
+        atraj->Momentum.push_back(p->GetMomentum());
+        atraj->Region.push_back(1000000 + 1000*nextVolume + thisVolume);
+    }    
+}
+
+
+void CP::captAna::fillTruth(CP::TEvent& event)
+{
+  // already done in processEvent setep
+  //fTG4VerticiesModule->FillTree(event); 
+  //fTG4VerticiesModule->GetOutputTree()->Fill(); 
+  //fTG4TrajectoriesModule->FillTree(event);  
+  //fTG4TrajectoriesModule->GetOutputTree()->Fill();
+
+  tcaptruth->RunId=event.GetRunId();
+  tcaptruth->EventId=event.GetEventId();
+  //tcapTruth->SubrunId=event->GetSubrunId();
+
+  // now put it anaTree containers. first verticies
+  std::vector<CP::TG4VerticesModule::TG4Vertex> fVerticies= fTG4VerticiesModule->GetVerticies();
+
+  for(unsigned iv =0; iv<fVerticies.size(); ++iv ) {
+    CP::TCapPrimaryVertex avert;
+    avert.VertexId=fVerticies[iv].VertexId;
+    avert.Position = fVerticies[iv].Position;
+    for(unsigned ip =0; ip<fVerticies[iv].Particles.size(); ++ip ) {
+      int ipnum = fVerticies[iv].Particles[ip];
+      avert.Particles.push_back(ipnum);   
+    }
+    tcaptruth->pvertex.push_back(avert);
+  }
+
+  std::vector<CP::TG4VerticesModule::TG4Particle> fParticles = fTG4VerticiesModule->GetParticles();
+  CP::TCapPrimaryParticle aparticle;
+  
+  for(unsigned ip =0; ip<fParticles.size(); ++ip) {
+    aparticle.TrackId = fParticles[ip].TrackId;
+    aparticle.VertexId = fParticles[ip].VertexId;
+    aparticle.PDG = fParticles[ip].PDG;
+    aparticle.Mass = fParticles[ip].Mass;
+    aparticle.Charge = fParticles[ip].Charge;
+    aparticle.Momentum = fParticles[ip].Momentum;
+    tcaptruth->pparticle.push_back(aparticle);
+  }
+
+  // now truth hits
+  CP::THandle<CP::TDataVector> truthHits = event.Get<CP::TDataVector>("truth/g4Hits");
+  CP::THandle<CP::TG4TrajectoryContainer> fTrajectories = event.Get<CP::TG4TrajectoryContainer>("truth/G4Trajectories");
+  
+  fthits.clear();
+  if(!truthHits) {
+    printf("truth/g4Hits not found !!! ");
+  } else {
+    //double minEnergy = 0.18*unit::MeV/unit::mm;
+    //double maxEnergy = 3.0*unit::MeV/unit::mm;
+    for (CP::TDataVector::iterator h = truthHits->begin(); h != truthHits->end(); ++h) {
+      CP::THandle<CP::TG4HitContainer> g4Hits = (*h)->Get<CP::TG4HitContainer>(".");
+      if (!g4Hits) {
+        printf("truth/g4Hits object that is not a TG4HitContainer: %s ",(*h)->GetName());
+        continue;
+      }
+      for (CP::TG4HitContainer::const_iterator h = g4Hits->begin();  h != g4Hits->end(); ++h) {
+        const CP::TG4HitSegment* seg  = dynamic_cast<const CP::TG4HitSegment*>((*h));
+        if (!seg) {
+          printf("Not showing TG4Hit not castable as a TG4HitSegment!!! \n");
+          continue;
+        }
+
+        CP::TCapTruthHit thit;
+        thit.SetName((*h)->GetName());
+        thit.edep = seg->GetEnergyDeposit();
+        thit.length = seg->GetTrackLength();
+        thit.dedx = thit.edep;
+        if (thit.length>0.01*unit::mm) thit.dedx /= thit.length;
+        thit.start.SetXYZ(seg->GetStartX(),seg->GetStartY(),seg->GetStartZ());
+        thit.stop.SetXYZ(seg->GetStopX(),seg->GetStopY(),seg->GetStopZ());
+
+        int trajIndex = seg->GetContributor(0);
+        if(fTrajectories) {
+          CP::THandle<CP::TG4Trajectory> theTraj = fTrajectories->GetTrajectory(trajIndex);
+          thit.trajIndex = theTraj->GetTrackId();		
+          /* these seem to be always the same but I am keeping the TrackId to be sure */
+          //printf("  xxxxx %i =? %i xxxxx ",trajIndex,thit.trajIndex);
+          thit.pdg = theTraj->GetPDGEncoding();
+          thit.SetTitle( theTraj->GetParticleName().c_str());
+        }
+        //thit.print();
+        fthits.push_back(thit);
+      }
+    }
+  } // got truth hits 
+  //printf(" here are the truth hits \n");
+  //for(unsigned  ihit=0; ihit < fthits.size(); ++ihit) fthits[ihit].print(event.GetEventId());
+ 
+
+  
+
+  //now trajectories TrajectoriesModule
+  // now we don't need the 
+  //std::vector<CP::TG4TrajectoriesModule::TG4Trajectory> modTrajectories = fTG4TrajectoriesModule->fTrajectories;
+
+  // trajectory number.  Iterating through the trajectory returns pairs with
+  /// the first element being the trajectory number, and the second element
+  /// being the TG4Trajectory object.
+  
+  CP::TG4TrajectoryContainer::iterator traj_it =  fTrajectories->begin();
+  CP::TG4TrajectoryContainer::iterator traj_end = fTrajectories->end();
+  CP::TG4Trajectory* traj;
+
+  for (; traj_it != traj_end; ++traj_it) {
+    traj = &traj_it->second;
+    //for(unsigned it =0; it<fTrajectories.size(); ++it) {
+    CP::TCapTrajectory atraject;
+    atraject.TrajId=traj->GetTrackId();		
+    atraject.ParentId=traj->GetParentId();	
+    atraject.PrimaryId=fTrajectories->GetPrimaryId(atraject.TrajId);		
+    atraject.PDG=traj->GetPDGEncoding();
+    atraject.Mass = CP::utils::FindPDGMass(traj->GetPDGEncoding());
+    atraject.Charge = CP::utils::FindPDGCharge(traj->GetPDGEncoding());
+    fillTruthPoints(&atraject,traj);
+    //add hits to this track 
+    for(unsigned  ihit=0; ihit < fthits.size(); ++ihit) 
+      if(  fthits[ihit].trajIndex ==  atraject.TrajId ) atraject.thits.push_back(fthits[ihit]);
+
+    ///atraject.print(event.GetEventId());
+    tcaptruth->trajectory.push_back(atraject);  
+  }
+}
+
+
+void CP::captAna::Initialize(void){ 
+  isFirstEvent=true;
+  total_events=0;
+  nhist=0;
+  for( int itype=0; itype<=UNKNOWN; ++itype) typeList[itype]=0;
+
+  // list of class that inherit from TReconBase
+  reconClassName.push_back(std::string("CP::TReconTrack"));
+  reconClassName.push_back(std::string("CP::TReconShower"));
+  reconClassName.push_back(std::string("CP::TReconCluster"));
+  reconClassName.push_back(std::string("CP::TReconVertex"));
+  reconClassName.push_back(std::string("CP::TReconPID"));
+  printf(" initialized TReconBase classes :");
+  for(unsigned iclass=0; iclass<reconClassName.size(); ++iclass) printf("  %s ",reconClassName[iclass].c_str());
+  printf(" \n");
+
+  gDirectory->cd("/");
+  for(int jhist=0; jhist<MAXHIST; ++jhist) {
+    tpcid_list[jhist]=CP::TTPCChannelId(0,0,0);
+    event_list[jhist]=-1;
+  }
+  ilate=0;// non zero for charge injection data
+  // new class based containers
+  anaTree = new TTree("anaTree","anaTree");
+  tcapevent = new CP::TCapEvent();
+  tcaptruth = NULL;
+  anaTree->Branch("event",&tcapevent);
+  tcalibcluster = new CP::TCalibCluster();
+  anaTree->Branch("calib",&tcalibcluster);
+  
+  // this is old containers
+  tdrift = new TTree("tdrift","tdrift");
+  tdrift->Branch("rawWave",&rawWave,
+      "iev/I:crate/I:fem/I:asic/I:nchan/I:plane/I:wire/I:baseMedian/F:baseSigma/F:sampleSigma/F:fitMean/F:fitMeanErr/F:fitSlope/F:fitSlopeErr/F:fitChi/F:npower/F");
+  maxadc=pow(2,12);
+  int maxSample=maxadc-1;
+  //int halfadc=pow(2,11);
+  hWaveFit = new TH1D("hWaveFit","wave to fit",maxSample,0,maxSample);
+  hWaveFit->Sumw2();
+  hClusterQ = new TH1D("ClusterQ"," cluster charge ",1000,0,1000000);
+  char htitle[80];
+  for (int i=0; i<MAXHIST; ++i) {
+    sprintf(htitle,"Wave_%i",i);
+    hWaveSamples[i] = new TH1D(htitle,htitle,maxSample,0,maxSample);
+    sprintf(htitle,"Dwave_%i",i);
+    hDWaveSamples[i] = new TH1D(htitle,htitle,maxSample,0,maxSample);
+    sprintf(htitle,"Hwave_%i",i);
+    //hWaveHits[i] = new TH1D(htitle,htitle,maxSample,0,maxSample);
+    hElecResponse[i]=NULL;
+    hFFTSamples[i]=NULL;
+  }
+
+  int nSize = int(NSIZE);
+
+  // FFT by FEM
+  for(int ifem = 0; ifem<MAXFEM; ++ifem) {
+    for(int jfem = 0; jfem<MAXASIC; ++jfem) {
+      hFFT_FEM[ifem][jfem]=NULL;
+      hFFT_DEC[ifem][jfem]=NULL;
+    }
+  }
+
+  // initialze FFT
+  fFFT = TVirtualFFT::FFT(1, &nSize, "R2C M K");
+  fInverseFFT = TVirtualFFT::FFT(1, &nSize, "C2R M K");
+  fFFTResponse= TVirtualFFT::FFT(1, &nSize, "R2C M K");
+  fElectronicsResponse = new CP::TElectronicsResponse(nSize);      
+  printf(" captAna with MAXHIST = %i\n",MAXHIST);
+  gDirectory->cd("/");
+  gDirectory->ls();
+}
+
+/******************************************/ 
+// **** loop over events ***
+/******************************************/ 
+bool CP::captAna::operator () (CP::TEvent& event) {
+  // clear the branches
+  tcapevent->clear();
+  if(tcaptruth) tcaptruth->clear();
+
+  CP::TChannelInfo::Get().SetContext(event.GetContext());
+
+  CP::TChannelCalib channelCalib;
+  int nSize = int(NSIZE);
+  int ievent = event.GetEventId();
+  tcapevent->EventId = event.GetEventId();
+  ++total_events;
+  if(ievent%100==0) {
+    printf(" ################ eventid %i events read %u ################## \n",ievent,total_events);
+    CaptLog("Event " << event.GetContext());
+    CaptLog("Event " << event.GetContext());
+    std::cout << " runid " << event.GetRunId()<< " ";
+    std::cout << " timestamp " << event.GetContext().GetTimeStamp();
+    std::cout << " nanosec " << event.GetContext().GetNanoseconds()<<std::endl;
+    printf(" #################################################### \n");
+  }
+  tcapevent->timestamp=event.GetContext().GetTimeStamp();
+  tcapevent->nanoseconds=event.GetContext().GetNanoseconds();
+  //tcapevent->print();
+  //std::cout << event.GetContext().GetSpill()<<std::endl
+  if(ievent<2){
+    printf(" data structure for this file : \n ");
+    for (CP::TEvent::iterator v= event.begin(); v != event.end(); ++v) {
+      printf(" TEvent iter: %s %s  \n",(*v)->GetName(),(*v)->GetTitle());
+      // this gives more details
+      (*v)->ls();
+    }
+    printf(" ----------------------  \n\n\n ");
+  }
+
+  // **** check for digits data vector ***
+  if(isFirstEvent) printf(" checking for digits event %i \n",ievent);
+  CP::THandle<CP::TDataVector> digits = event.Get<CP::TDataVector>("digits");
+  if(!digits&&isFirstEvent) printf(" digtits is null event %i \n",ievent);
+  if(isFirstEvent) {
+    printf(" \n\n ---------- structure of digits data vector  : \n ");
+    printf(" >>> size of digits %i  \n",int(digits->size()));
+    for (CP::TDataVector::iterator dv= digits->begin(); dv != digits->end(); ++dv) {
+      std::cout << "      ls from this iterator ";  (*dv)->ls();
+      printf("  _____ TDataVector iter: %s %s  \n",(*dv)->GetName(),(*dv)->GetTitle());
+    }
+    printf(" ----------------------  \n\n\n ");
+  }
+
+  /** this is the raw data **/
+  CP::THandle<CP::TDigitContainer> drift = event.Get<CP::TDigitContainer>("digits/drift");
+  if(!drift&&isFirstEvent) printf(" drift is null event %i \n",ievent);
+  if(drift) {
+    if(isFirstEvent) printf(" size of drift selection %i  \n",(int) drift->size());
+    //for (std::size_t d = 0; d < drift->size(); ++d) {}
+    int num_channels=0;
+    for (CP::TDigitContainer::iterator td = drift->begin(); td != drift->end(); ++td) {
+      //const CP::TPulseDigit* digit= dynamic_cast<const CP::TPulseDigit*>((*drift)[d]);
+      const CP::TPulseDigit *digit = dynamic_cast<const CP::TPulseDigit*>(*td);
+      if(!digit) {
+        printf(" no digit found !!!!! ");
+        continue;
+      }
+      //digit->ls();
+      //printf(" sample count %i \n",(int)digit->GetSampleCount());
+      // loop over sample counts and histogram
+      CP::TChannelId chid = digit->GetChannelId();
+      double timeStep = channelCalib.GetTimeConstant(chid);
+      // unit::nanosecond is one
+      if(isFirstEvent&&num_channels==0) cout << chid.AsString() << " timestep is  "
+        << timeStep*unit::nanosecond << " nsec  " << timeStep/unit::microsecond << " micro-sec " << endl; 
+      ++num_channels;
+      CP::TTPCChannelId tpcid; 
+      if(chid.IsTPCChannel())  tpcid = CP::TTPCChannelId(chid);
+      else continue;
+      vector<unsigned short> samples = digit->GetSamples();
+
+      // calculate baseline 
+      //< clusterCalib.deconvolution.baselineCut = 5 >
+
+      // make a vector to sort the samples
+      std::vector<double> diff;
+      diff.resize(digit->GetSampleCount());
+      // Find the sample median and it's "sigma".
+      for (std::size_t i=1; i<digit->GetSampleCount(); ++i) {
+        hWaveFit->SetBinContent(i,double(digit->GetSample(i)));  // for fitting
+        hWaveFit->SetBinError(i,1.0); // one adc count is the error
+        diff[i] = digit->GetSample(i);
+      }
+      std::sort(diff.begin(), diff.end());
+
+      double baselineMedian = diff[0.5*digit->GetSampleCount()];
+      double baselineSigma = diff[0.16*digit->GetSampleCount()];
+      baselineSigma = std::abs(baselineSigma-baselineMedian);
+
+      //fit the wave to a line
+
+      TF1 *fline = new TF1("fline", "pol1"); // a line 
+      fline->SetParameter(0,baselineMedian);
+      fline->SetParameter(1,0);
+      TFitResultPtr fitptr = hWaveFit->Fit("fline","QS"); // M for minuit L for likelihood Q for quiet N is to not store result E minos errors
+      double fitMean    = fitptr->Parameter(0);
+      double fitMeanErr = fitptr->ParError(0);
+      double fitSlope   = fitptr->Parameter(1);
+      double fitSlopeErr= fitptr->ParError(1);
+      double fitChi = fitptr->Chi2()/fitptr->Ndf();
+
+      // The minimum baseline fluctuation is 1 electron charge.
+      if (baselineSigma < 1) baselineSigma = 1.0;
+
+      // Define a maximum separation between the sample and the median sample.
+      // If it's more than this, then the sample is not baseline.  This is one
+      // sided.  This is looking at the overall fluctation of the baseline and
+      // prevents large plateaus from being cut.
+      //double baselineCut = baselineMedian + fBaselineCut*baselineSigma;
+
+      // Find the median sample to sample difference.  Regions where the samples
+      // stay withing a small difference don't have a "feature of interest".
+      for (std::size_t i=1; i<digit->GetSampleCount(); ++i) {
+        double delta = std::abs(digit->GetSample(i) - digit->GetSample(i-1));
+        diff[i] = delta;
+      }
+      std::sort(diff.begin(), diff.end());
+
+      // The 52 percentile is a of the sample-to-sample differences is a good
+      // estimate of the distribution sigma.  The 52% "magic" number comes
+      // looking at the differences of two samples (that gives a sqrt(2)) and
+      // wanting the RMS (which is the 68%).  This gives 48% (which is
+      // 68%/sqrt(2)).  Then because of the ordering after the sort, the bin we
+      // look at is 1.0-52%.  The minimum allowable fluctuation is 1 electron
+      // charge.
+      double sampleSigma = diff[0.52*digit->GetSampleCount()];
+      if (sampleSigma < 1.0) sampleSigma = 1.0;
+
+      //
+      // make list of histograms to save
+      if(nhist<MAXHIST) {
+        tpcid_list[nhist]=tpcid; 
+        event_list[nhist]=ievent;
+        //printf(" histos are %i for id %s event %i \n",nhist,tpcid.AsString().c_str(),ievent);
+        ++nhist;
+      }
+
+      // fill waveforms in list 
+      char hname[80];
+      char htitle[80];
+      for(int jhist=0; jhist<MAXHIST; ++jhist) {
+        if(tpcid == tpcid_list[jhist] && ievent == event_list[jhist] ) {
+          sprintf(htitle,"Wave_%s_Ev_%i",tpcid.AsString().c_str(),ievent);
+          hWaveSamples[jhist]->SetTitle(htitle);
+          //printf(" <<<<<< %s %i event %i  \n",hWaveSamples[jhist]->GetTitle(),jhist,event_list[jhist]);
+          for(unsigned is =0; is<samples.size(); ++is) hWaveSamples[jhist]->SetBinContent(is+1,double(samples[is]));
+        }
+      }
+
+      // **** loop over samples , TDC times for FFT 
+      //  fft for this digit 
+      printf(" setting fft points \n\n");
+      for(unsigned is =0; is<samples.size(); ++is) fFFT->SetPoint(is,samples[is]); // FFT of signal
+      fFFT->Transform();
+
+
+      CP::TChannelCalib channelCalib;
+      // look at Electronic Response 
+      vector<double> fResponse(NSIZE);
+      // Fill the response function.  This explicitly normalizes so that the
+      // rawWave shaping is amplitude conserving (the rawWave shaping for a
+      // "delta-function" sample doesn't change the rawWave height).
+      double normalization = 0.0;
+      for (unsigned i=0; i<fResponse.size(); ++i) {
+        //double arg = channelCalib.GetTimeConstant(chid)*(1.0*i+0.5);
+        //double v = channelCalib.GetPulseShape(chid,arg);
+        //fResponse[i] = v;
+        fResponse[i] = fElectronicsResponse->GetResponse(i);
+        normalization = std::max(normalization,fResponse[i]);
+      }
+      assert(normalization > 1E-20);
+      // normalize 
+      for (std::vector<double>::iterator r = fResponse.begin(); r != fResponse.end(); ++r) {
+        (*r) /= normalization;
+      }
+
+      // need fft of response function for noise calculation 
+      for(unsigned is =0; is<fResponse.size(); ++is) fFFTResponse->SetPoint(is,fResponse[is]);      // **** loop over samples , TDC times for FFT 
+      fFFTResponse->Transform();
+
+      // fill samples FFT histogram && elec response in time domain
+      for(int jhist=0; jhist<MAXHIST; ++jhist) {
+        if(tpcid == tpcid_list[jhist] ) {
+          std::string chanName = ChIdString(tpcid);
+          if(!hFFTSamples[jhist]){ 
+            hFFTSamples[jhist] = new TH1D((chanName+std::string("_fft")).c_str(),
+                ("FFT for " + chid.AsString()).c_str(),
+                nSize/2,0,(0.5/timeStep)/unit::hertz);
+            printf(" created %i %s %s \n",jhist,hFFTSamples[jhist]->GetName(),hFFTSamples[jhist]->GetTitle());
+          }
+          // skip first bin which is pedestal
+          for (int i = 1; i<nSize/2; ++i) {
+            double rl, im;
+            fFFT->GetPointComplex(i,rl,im);
+            std::complex<double> c(rl,im);
+            hFFTSamples[jhist]->SetBinContent(i+1,hFFTSamples[jhist]->GetBinContent(i+1)+std::abs(c));
+          } 
+
+          // elec response in the time domain
+          if(!hElecResponse[jhist]){
+            hElecResponse[jhist] = new TH1D((chanName+std::string("_ElecResponse")).c_str(),
+                ("elec response " + chid.AsString()).c_str(),nSize,0,nSize);
+            for (unsigned i = 1; i<fResponse.size(); ++i) hElecResponse[jhist]->SetBinContent(i+1,fResponse[i]);
+            printf(" created %i %s %s \n",jhist,hElecResponse[jhist]->GetName(),hElecResponse[jhist]->GetTitle());
+          }
+        }
+      }
+
+      // ***************** moise filter statistics *********************
+      vector<double> fWork(NSIZE); // abs value of signal
+      for (std::size_t i = 0; i<NSIZE; ++i) {
+        double rl, im;
+        fFFT->GetPointComplex(i,rl,im);
+        std::complex<double> c(rl,im);
+        fWork[i] = std::abs(c);
+      }
+
+      vector<double> fRWork(NSIZE);  // abs value of response
+      for (std::size_t i = 0; i<NSIZE; ++i) {
+        double rl, im;
+        fFFT->GetPointComplex(i,rl,im);
+        std::complex<double> c(rl,im);
+        fRWork[i] = std::abs(c);
+      }
+
+      double maxResponse = 0.0;
+      double minResponse = 1E+6;
+      for (std::size_t i = 0; i<NSIZE; ++i) {
+        maxResponse = std::max(maxResponse,fRWork[i]);
+        minResponse = std::min(minResponse,fRWork[i]);
+      }
+
+      // Find the Gaussian noise estimate.
+      double maxSignal = 0.0;
+      double maxSignalWeight = 0.0;
+      double minSignal = 0.0;
+      double minSignalWeight = 0.0;
+      for (unsigned i=0; i<fWork.size(); ++i) {
+        double w = fRWork[i]/maxResponse;
+        w = w*w;
+        double p = fWork[i]*fWork[i]/fWork.size()/fWork.size();
+        maxSignalWeight += w;
+        maxSignal += w*p;
+        w = 1.0-fRWork[i]/maxResponse;
+        w *= w;
+        minSignalWeight += w;
+        minSignal += w*p;
+      }
+      maxSignal = maxSignal/maxSignalWeight;
+      minSignal = minSignal/minSignalWeight;
+      maxSignal = std::sqrt(maxSignal*fWork.size()/2.0);
+      minSignal = std::sqrt(minSignal*fWork.size()/2.0);
+
+      // Estimate the noise power relative to the averaged signal.
+      double npower = 0.0;
+      if (minSignal < maxSignal) {
+        npower = maxSignal*minResponse-maxResponse*minSignal;
+        npower /= (minSignal-maxSignal);
+      }
+
+      // fill by FEM/ASIC
+      int nChannel = (int) tpcid.GetChannel();
+      int nFEM  =tpcid.GetFEM();
+      int nASIC=nChannel>>4;
+
+      // get geo plane and wire  number.
+      CP::TGeometryId geoid = CP::TChannelInfo::Get().GetGeometry(chid);
+      int plane = CP::GeomId::Captain::GetWirePlane(geoid);
+      double wire = CP::GeomId::Captain::GetWireNumber(geoid) + 0.5;
+
+      for (int i = 1; i<nSize/2; ++i) {
+        if(!hFFT_FEM[nFEM][nASIC]) {
+          sprintf(hname,"FFT_FEM%02iASIC%02i",nFEM,nASIC);
+          sprintf(htitle,"FFT for FEM %02i ASIC %02i",nFEM,nASIC);
+          //printf(" %s %s \n",hname,htitle);
+          hFFT_FEM[nFEM][nASIC] = new TH1D(hname,htitle,nSize/2,0,(0.5/timeStep)/unit::hertz);
+        }
+        double rl, im;
+        fFFT->GetPointComplex(i,rl,im);
+        std::complex<double> c(rl,im);
+        hFFT_FEM[nFEM][nASIC]->SetBinContent(i+1, hFFT_FEM[nFEM][nASIC]->GetBinContent(i+1)+std::abs(c));
+      } 
+
+      rawWave.iev=ievent;
+      rawWave.crate=tpcid.GetCrate();
+      rawWave.wire = int(wire);
+      rawWave.plane = plane;
+      rawWave.fem= nFEM;
+      rawWave.asic=nASIC;
+      rawWave.nchan= tpcid.GetChannel();
+      rawWave.baseMedian = baselineMedian;
+      rawWave.baseSigma  = baselineSigma;
+      rawWave.sampleSigma  = sampleSigma;
+      rawWave.fitMean= fitMean;
+      rawWave.fitMeanErr= fitMeanErr;
+      rawWave.fitSlope= fitSlope;
+      rawWave.fitSlopeErr = fitSlopeErr;
+      rawWave.fitChi = fitChi;
+      rawWave.npower = float(npower);
+      tdrift->Fill();
+    }  // raw digit container loop 
+  }// if drift 
+
+  //for(int jhist=0; jhist<MAXHIST; ++jhist) printf(" %s \n",tpcid_list[jhist].AsString().c_str());
+  CP::THandle<CP::TDigitContainer> dcdrift = event.Get<CP::TDigitContainer>("digits/drift-deconv");
+  if(!dcdrift&&isFirstEvent) printf(" dcdrift is null event %i \n",ievent);
+  if(dcdrift) {
+    if(isFirstEvent) printf(" size of dcdrift selection %i  \n",(int) dcdrift->size());
+    for (CP::TDigitContainer::iterator tdc = dcdrift->begin(); tdc != dcdrift->end(); ++tdc) {
+      CP::TCalibPulseDigit *dcdigit = (CP::TCalibPulseDigit *) (*tdc);
+      if(!dcdigit) continue;
+      //dcdigit->ls();
+      CP::TChannelId chID = dcdigit->GetChannelId();
+      CP::TTPCChannelId tpcID; 
+      if(chID.IsTPCChannel())  tpcID = CP::TTPCChannelId(chID);
+      //else continue;// if not a TPCChannel 
+      //int icrate = tpcID.GetCrate();
+
+      vector<float> samples = dcdigit->GetSamples();
+      // loop over all samples for FFT
+      for(unsigned is =0; is<samples.size(); ++is)  fFFT->SetPoint(is,samples[is]);
+      fFFT->Transform();
+      // fill by FEM/ASIC
+      int nChannel =tpcID.GetChannel();
+      int nFEM  =tpcID.GetFEM();
+      int nASIC=nChannel>>4; 
+      char hname[80];
+      char htitle[80];
+      double timeStep = channelCalib.GetTimeConstant(chID);
+
+      for (int i = 1; i<nSize/2; ++i) {
+        if(!hFFT_DEC[nFEM][nASIC]) {
+          sprintf(hname,"FFT_DEC_FEM%02iASIC%02i",nFEM,nASIC);
+          sprintf(htitle,"deconvolved FFT for FEM %02i ASIC %02i",nFEM,nASIC);
+          //printf(" %s %s \n",hname,htitle);
+          hFFT_DEC[nFEM][nASIC] = new TH1D(hname,htitle,nSize/2,0,(0.5/timeStep)/unit::hertz);
+        }
+        double rl, im;
+        fFFT->GetPointComplex(i,rl,im);
+        std::complex<double> c(rl,im);
+        hFFT_DEC[nFEM][nASIC]->SetBinContent(i+1, hFFT_DEC[nFEM][nASIC]->GetBinContent(i+1)+std::abs(c));
+      } 
+
+
+      // fill waveforms in list 
+      for(int jhist=0; jhist<MAXHIST; ++jhist) {
+        if(tpcID == tpcid_list[jhist] && ievent == event_list[jhist] ) {
+          char htitle[80];
+          sprintf(htitle,"deconvWave_%s_Ev_%i",tpcID.AsString().c_str(),ievent);
+          hDWaveSamples[jhist]->SetTitle(htitle);
+          //printf(" >>>>> %s %s %i event %i  \n",hWaveSamples[jhist]->GetTitle(),hDWaveSamples[jhist]->GetTitle(),jhist,event_list[jhist]);
+          for(unsigned is =0; is<samples.size(); ++is) hDWaveSamples[jhist]->SetBinContent(is+1,double(samples[is]));
+        }
+      }
+    } // dcdigit
+  }// if dcdrift
+
+  CP::THandle<CP::THitSelection>  hits = event.GetHits("drift");  // gets hits/drift
+  //CP::THandle<CP::THitSelection> hits = event.GetHits("hits");
+  if(!hits&&isFirstEvent) printf(" hits is null event %i \n",ievent);
+  if(hits) {
+    if(isFirstEvent) printf(" size of hits selection %i  \n",(int) hits->size());
+    TH1D* hhitwave = NULL;
+    TH1D* hrawwave = NULL;
+    TH1D* hdecwave = NULL;
+
+    std::string current_stpcid;
+    int hit_count=0;
+    CP::TChannelId currentID(0);
+    double channel_charge=0;
+    char hname[120];
+    char htitle[120];
+
+    int num_hit=0;
+    for (CP::THitSelection::iterator hhit = hits->begin(); hhit != hits->end(); ++hhit) {
+      CP::THandle<CP::THit> theHit = *hhit;
+
+
+      CP::TChannelId chid(theHit->GetChannelId());
+      if(!chid.IsValid()) {
+        printf("NOT a valid fucking TChannelID %s \n",chid.AsString().c_str());
+        continue;
+      }
+
+      // get geo plane and wire  number.
+      CP::TGeometryId geoid = CP::TChannelInfo::Get().GetGeometry(chid);
+      //int plane = CP::GeomId::Captain::GetWirePlane(geoid);
+      //double wire = CP::GeomId::Captain::GetWireNumber(geoid) + 0.5;
+
+
+      CP::TTPCChannelId tpcid(chid);
+      std::string stpcid=ChIdString(chid);
+      // fill channel info for the capHit
+      //int nChannel =tpcid.GetChannel();
+      //int nASIC= nChannel>>4; 
+
+      // check if new channel
+      if(!(chid==currentID)) {
+        sprintf(htitle,"hitWave_%s_Ev_%i charge %E hits %i",current_stpcid.c_str(),ievent,channel_charge,hit_count);
+        if(hhitwave) hhitwave->SetTitle(htitle);
+        currentID=chid;
+        current_stpcid=stpcid;
+        hhitwave=NULL;
+        hrawwave=NULL;
+        hdecwave=NULL;
+        channel_charge=0;
+        hit_count=0;
+      }
+      double timeStep = channelCalib.GetTimeConstant(chid);
+
+      // take nominal pedestal for now.
+      double pedestal = channelCalib.GetGainConstant(chid,0);
+      double gain = channelCalib.GetGainConstant(chid,1);
+      double slope = channelCalib.GetDigitizerConstant(chid,1);
+
+      CP::TDigit *rawDigit=NULL; 
+      if(drift) rawDigit = GetDigit( drift, chid );
+      else printf(" aint got no drift \n");
+
+
+      CP::TDigit *decDigit=NULL; 
+      if(dcdrift) decDigit = GetDigit( dcdrift, chid );
+      //else printf(" aint got no deconvolved drift \n");
+
+
+      // calculate the noise and baseline
+      double fSampleSigma=0;
+      if(decDigit) {
+        CP::TCalibPulseDigit *dcdigit = (CP::TCalibPulseDigit *) (decDigit);
+        vector<float> diff = dcdigit->GetSamples();
+        std::sort(diff.begin(), diff.end());
+        // The 52 percentile is a of the sample-to-sample differences is a good -- see TPulseDeconvolution...
+        int sigma52 = int(0.52*dcdigit->GetSampleCount());
+        fSampleSigma = diff[sigma52];
+        if (fSampleSigma < 1.0) fSampleSigma = 1.0;
+      }
+
+
+      // get corresponding raw hit
+      channel_charge += theHit->GetCharge();
+      ++hit_count;
+      if(isFirstEvent&&rawDigit&&decDigit) {
+        CP::TPulseDigit *rawPulse =   dynamic_cast<CP::TPulseDigit *>(rawDigit);
+        CP::TCalibPulseDigit *decPulse =   dynamic_cast<CP::TCalibPulseDigit *>(decDigit);
+        //printf("  found this rawWave \n");
+        //rawPulse->ls();
+
+        vector<unsigned short> rawSamples = rawPulse->GetSamples();
+        vector<float> decSamples = decPulse->GetSamples();
+        int maxSample = rawPulse->GetSampleCount();
+
+        //printf("  found in event %i this rawWave  %s  charge %E hit %i  \n",
+        //ievent,tpcid.AsString().c_str(),theHit->GetCharge(),hit_count);
+        if(!hhitwave) {
+          sprintf(hname,"hitWave_%s_Ev_%i",stpcid.c_str(),ievent);
+          sprintf(htitle,"hitWave_%s_Ev_%i charge %E hits %i",stpcid.c_str(),ievent,channel_charge,hit_count);
+          hhitwave = new TH1D(hname,htitle,maxSample,0,maxSample);
+        }
+        sprintf(htitle,"rawWave_%s_Ev_%i",stpcid.c_str(),ievent);
+
+
+        if(!hrawwave) hrawwave = new TH1D(htitle,htitle,maxSample,0,maxSample);
+        sprintf(htitle,"decWave_%s_Ev_%i",stpcid.c_str(),ievent);
+        if(!hdecwave) hdecwave = new TH1D(htitle,htitle,maxSample,0,maxSample);
+
+        double hitTime = theHit->GetTime();
+        double hitRMS = theHit->GetTimeRMS();
+        for(unsigned is =0; is<rawSamples.size(); ++is) {
+          double stime = timeStep*(double(is)+0.5);
+          if( stime > hitTime - hitRMS && stime < hitTime + hitRMS ) {
+            hhitwave->SetBinContent(is+1,hhitwave->GetBinContent(is+1)+double(decSamples[is]));
+          }
+        }
+
+        //printf(" <<<<<< %s %i event %i  \n",hWaveSamples[jhist]->GetTitle(),jhist,event_list[jhist]);
+        for(unsigned is =0; is<rawSamples.size(); ++is){
+          hrawwave->SetBinContent(is+1,(double(rawSamples[is])-pedestal)/gain/slope);
+          hdecwave->SetBinContent(is+1,double(decSamples[is]));
+        }
+      } //else 
+      //printf(" digit not found %s \n",chid.AsString().c_str());
+
+      hClusterQ->Fill( (*hhit)->GetCharge());
+      CP::TCapHit capHit;
+      fillCapHit(&capHit,theHit,fSampleSigma);
+      //capHit.print();
+      tcapevent->hits.push_back(capHit);
+      ++num_hit;
+    }
+  }
+
+
+  // look for fits
+  CP::THandle<CP::TAlgorithmResult> fitptr=event.Get<CP::TAlgorithmResult>("~/fits/TCaptainRecon");
+  if(fitptr&&isFirstEvent) printf(" xxxxxx  TCaptainRecon is FOUND  \n");
+  if(!fitptr&&isFirstEvent) printf(" xxxxxx TCaptainRecon not found!  \n");
+
+  if(fitptr) {
+    if(isFirstEvent) printf("  size of fits %i  \n",(int) fitptr->size());
+    /*
+       name  TCluster3D title An Algorithm Result  isAlgo 1 
+       name  TClusterSlice title An Algorithm Result  isAlgo 1 
+       name  TMinimalSpanningTrack title An Algorithm Result  isAlgo 1 
+       name  TSplitTracks title An Algorithm Result  isAlgo 1 
+       name  TMergeTracks title An Algorithm Result  isAlgo 1 
+       name  TDisassociateHits title An Algorithm Result  isAlgo 1 
+       name  TCombineOverlaps title An Algorithm Result  isAlgo 1 
+       name  hits title Link To  isAlgo 0 
+       name  unused title Hit Handles  isAlgo 0 
+       name  used title Hit Handles  isAlgo 0 
+       name  results title Link To  isAlgo 0 
+       name  final title Recon Object Container  isAlgo 0 
+       */
+    std::vector<string> algoName;
+    CP::TReconObjectContainer* fresult=NULL; //defined in TReconBase.hxx
+    for (CP::TAlgorithmResult::iterator tv = fitptr->begin(); tv != fitptr->end(); ++tv) {
+      TObject *obj = *tv;
+      //printf(" TAlogrithmResult name  %s title %s i ",(*tv)->GetName(),(*tv)->GetTitle());
+      std::string aname((*tv)->GetName());
+      if(strcmp(aname.c_str(),"final")==0) fresult = (CP::TReconObjectContainer*) (*tv);
+      //(*tv)->ls();
+      bool isAlgo = obj->InheritsFrom("CP::TAlgoritmResult");
+      if(isAlgo) {
+        algoName.push_back(aname);
+        CP::TAlgorithmResult*  result = (CP::TAlgorithmResult*) (*tv);
+        //printf(" xxxx  name  %s title %s  \n",result->GetName(),result->GetTitle());
+        result->GetAlgorithmTag().ls();//
+      }//
+      //printf("\n\n");
+    }
+    // class CP::TReconObjectContainer : public TDatum, public std::vector< CP::THandle<CP::TReconBase> > {
+    if(fresult) {
+      if(isFirstEvent) printf("................final results container size %i \n",(int) fresult->size());
+      for (CP::TReconObjectContainer::iterator rv = fresult->begin(); rv != fresult->end(); ++rv) {
+        reconType rtype=UNKNOWN;
+        for(unsigned iclass=0; iclass<reconClassName.size(); ++iclass) { 
+          if( (*rv)->InheritsFrom(reconClassName[iclass].c_str()) ) { 
+            rtype=reconType(iclass);   
+            ++typeList[rtype];      
+            //printf(" iclass %i type %i TReconObject %s \n",iclass, rtype,reconClassName[iclass].c_str());
+            //printTypeList();
+          }
+        }
+        if(rtype==UNKNOWN) printf(" CAPTANA does not know of this TReconObject!! ");
+        CP::THandle<CP::THitSelection> fhitselect = (*rv)->GetHits();
+        if(rtype==RTRACK){
+          //printf(" final result track   %s title %s hits %i  \n",(*rv)->GetName(),(*rv)->GetTitle(),(int) fhits->size() );
+          CP::TCapTrack capTrack;
+          CP::THandle<CP::TReconTrack> rtrack = *rv;
+          fillCapTrack(&capTrack,rtrack);
+          //capTrack.print();
+          tcapevent->tracks.push_back(capTrack);
+        } else if(rtype==RCLUSTER) {
+          CP::TCapCluster capCluster;
+          CP::THandle<CP::TReconCluster> rcluster = *rv;
+          fillCapCluster(&capCluster,rcluster);
+          tcapevent->clusters.push_back(capCluster);
+        } else if(rtype==RSHOWER) {
+          CP::TCapShower capShower;
+          CP::THandle<CP::TReconShower> rshower = *rv;
+          fillCapShower(&capShower,rshower);
+          tcapevent->showers.push_back(capShower);
+        } else {
+          printf(" NNNNNNNNNNNNNNNNNNNNNN  final result-- i dont have this type yet ?  %s title %s hits %i  \n",
+              (*rv)->GetName(),(*rv)->GetTitle(),(int) fhitselect->size() );
+        }
+        //(*rv)->ls();
+      }
+      //fresult->ls();
+      // these seem to be TReconCluster, TReconTrack
+      // member of base class CP::THandle<CP::THitSelection> GetHits() 
+      // get hits and save for this event
+
+
+    }
+    //printf(" alog names %i \n",(int) algoName.size());
+    //for (CP::TReconObjectContainer::iterator tvfit = fits->begin(); fits != fits->end(); ++hhit) { }
+    //CP::THandle<CP::THitSelection> rhits = fits->GetHits();
+  }
+
+
+
+  // look for truth 
+  CP::THandle<CP::TDataVector> truthptr = event.Get<CP::TDataVector>("truth");
+  if(truthptr) {
+    if(isFirstEvent) printf(" XXXXX GOT THE TRUTH XXXXX size of truth %i  \n",(int) truthptr->size());
+    if(isFirstEvent) {
+      InitTruth();
+      fTG4TrajectoriesModule->ProcessFirstEvent(event);
+      fTG4VerticiesModule->ProcessFirstEvent(event);
+    } 
+    fTG4TrajectoriesModule->Process(event);
+    fTG4VerticiesModule->Process(event);
+    fillTruth(event);
+  }
+  // tree filled on every event
+  anaTree->Fill(); 
+  isFirstEvent=false; 
+  return false;
+} // end of event routine
+
+
+/******************************************/ 
+void CP::captAna::Finalize(CP::TRootOutput * const output) {
+
+  printf(" events processed %u\n",total_events);
+  printTypeList();
+  if(output) {
+    TDirectory* truthDir = (TDirectory *) output->FindObject("TruthDir");
+    if(truthDir) {
+      printf(" Deleting redundant TruthDir \n");
+      truthDir->Delete();
+    }
+    TTree* captainTree = (TTree *) output->FindObject("captainEventTree");
+    if(captainTree) {
+      printf(" Deleting captainEventTree \n");
+      captainTree->Delete();
+    }
+    
+    printf(" anaTree %i output events written %i \n", (int) anaTree->GetEntriesFast(), output->GetEventsWritten() ); 
+  } else 
+    printf(" output not written as no output file specified \n");
+}
+
+
+int main(int argc, char **argv) {
+  cout << " executing " << argv[0] << endl;
+  for(int i=1; i<argc; ++i) printf(" %i %s ",i,argv[i]);
+  if(argc>2) printf(" output file %s \n",argv[3]);
+  CP::captAna userCode;
+
+  CP::eventLoop(argc,argv,userCode);
+}
