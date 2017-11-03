@@ -1,5 +1,5 @@
 project captain-release
 
-use LCGCMT 2.0.4
+use LCGCMT master
 
 container captainRelease master
